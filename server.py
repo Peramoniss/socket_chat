@@ -5,7 +5,7 @@ import logging
 
 # Function to handle a client's communication
 def handle_client(client_socket, other_client_socket):
-    client_socket.send('Conexão estabelecida. Aguardando sua jogada...'.encode())
+    client_socket.send('Conexão estabelecida. Aguardando conversa...\n'.encode())
     while True:
         data = client_socket.recv(1024)  # Receive data from this client
         if data:
@@ -16,9 +16,8 @@ def handle_client(client_socket, other_client_socket):
             other_client_socket.send(data)
 
             # If the client wants to quit
-            if data.decode() == '\q':
+            if data.decode().split(':')[-1].strip() == '\q':
                 client_socket.send('\g'.encode())
-                #other_client_socket.send(data)
                 client_socket.close()
                 other_client_socket.close()
                 break

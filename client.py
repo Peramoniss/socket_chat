@@ -10,6 +10,7 @@ import tty
 import subprocess
 
 # Global variables
+username = None
 end = 0
 lock = threading.Lock()
 current_input = ""
@@ -40,6 +41,7 @@ def close_connection(soquete):
 
 # Start client
 def start_client():
+    global username
     soquete = s.socket(s.AF_INET, s.SOCK_STREAM)
 
     if len(sys.argv) < 3:
@@ -48,6 +50,8 @@ def start_client():
     ip = sys.argv[1] if len(sys.argv) > 1 else 'localhost'
     porta = int(sys.argv[2]) if len(sys.argv) > 2 else 65432
 
+    username = input("Select an username: ")
+
     server_address = (ip, porta)
     print(f"Connecting to {server_address}")
     soquete.connect(server_address)
@@ -55,8 +59,6 @@ def start_client():
     try:
         data = soquete.recv(1024)
         print(f"Received: {data.decode()}")
-        message = "Hello, Server!"
-        soquete.send(message.encode())
         return soquete
     except:
         close_connection(soquete)
@@ -72,7 +74,7 @@ def receive_messages(soquete):
                 end = 1
                 close_connection(soquete)
                 break
-            elif data.decode() == '\q':
+            elif data.decode().split(':')[-1].strip() == '\q':
                 print('Seu companheiro de chat desistiu da conversa :(')
                 end = 1
                 close_connection(soquete)
@@ -88,12 +90,10 @@ def receive_messages(soquete):
                     #print(f"Enter: {current_input}", end='', flush=True)  # Redraw user input
                 tput = subprocess.Popen(['tput', 'cols'], stdout=subprocess.PIPE)
                 column_size = int(tput.communicate()[0].strip())
-                limit = len(current_input) - len('Enter: ')
-                extra_lines = ( ( ( len(current_input) + len('Enter: ')) / column_size )) -1
-                extra_code = math.floor(extra_lines) * "\033[F\033[2K"
-                sys.stdout.write(f"\r\033[2KReceived: {data.decode()}\nEnter: {current_input[-limit:]}")
+                limit = column_size - len('Enter: ')
+                sys.stdout.write(f"\r\033[2K{data.decode()}\nEnter: {current_input[-limit:]}")
                 # sys.stdout.flush()
-            sys.stdin.flush()
+            # sys.stdin.flush()
             # sys.stdout.flush()
     finally:
         restore_mode(sys.stdin)
@@ -102,6 +102,7 @@ def receive_messages(soquete):
 def send_messages(soquete):
     global current_input
     global end
+    global username
     set_raw_mode(sys.stdin)
     sys.stdout.write(f"\r\033[KEnter: {current_input}")
     
@@ -113,8 +114,12 @@ def send_messages(soquete):
                 key = sys.stdin.read(1)  # Capture one character at a time
                 with lock:
                     if key == '\n':  # If Enter is pressed, send the message
-                        print(f'\r\033[2KYou: {current_input}')
-                        soquete.send(current_input.encode())
+                        #\r -> return to beginning of the line
+                        #\033 -> escape character, indicates formatting
+                        #\033[2K -> clears line (\033[K clears line from cursor to end)
+                        #\033[32m -> m escape is for stylize. 32 is for green, 0 is for resetting
+                        print(f'\r\033[2K\033[32mYou: {current_input}\033[0m')
+                        soquete.send(username.encode() + ": ".encode() + current_input.encode())
                         if current_input == '\q':
                             close_connection(soquete)
                             end = 1
@@ -130,8 +135,6 @@ def send_messages(soquete):
                     tput = subprocess.Popen(['tput', 'cols'], stdout=subprocess.PIPE)
                     column_size = int(tput.communicate()[0].strip())
                     limit = column_size - len('Enter: ')
-                    extra_lines = ( ( ( len(current_input) + len('Enter: ') ) / column_size ) ) - 1
-                    extra_code = math.floor(extra_lines) * "\033[F\033[2K"
                     sys.stdout.write(f"\r\033[2KEnter: {current_input[-limit:]}")
                     # #sys.stdout.flush()
             else:
