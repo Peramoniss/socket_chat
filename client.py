@@ -1,5 +1,6 @@
 import math
 import os
+from pathlib import Path
 import socket as s
 import sys
 import logging
@@ -24,6 +25,20 @@ def set_raw_mode(stream):
 
 def restore_mode(stream):
     termios.tcsetattr(stream, termios.TCSANOW, original_stty)
+
+def send_notification(data):
+    #NEXT STEP: VERIFY IF WINDOW IS CURRENTLY ACTIVE. IF SO, RETURN. OTHERWISE, SEND NOTIFICATION
+    script_dir = Path(__file__).parent
+    icon_path = script_dir / "notification-alert.svg"
+    command = [
+        "notify-send",
+        "-t", "2000",
+        "-i", str(icon_path),  # Convert Path object to string
+        "New message incoming",
+        data
+    ]
+
+    subprocess.run(command)
 
 # Flush input buffer
 def flush_input():
@@ -91,10 +106,9 @@ def receive_messages(soquete):
                 tput = subprocess.Popen(['tput', 'cols'], stdout=subprocess.PIPE)
                 column_size = int(tput.communicate()[0].strip())
                 limit = column_size - len('Enter: ')
-                sys.stdout.write(f"\r\033[2K{data.decode()}\nEnter: {current_input[-limit:]}")
-                # sys.stdout.flush()
-            # sys.stdin.flush()
-            # sys.stdout.flush()
+                sys.stdout.write(f"\r\033[2K{data.decode()}\n\033[92mEnter: {current_input[-limit:]}\033[0m")
+
+            send_notification(data.decode())
     finally:
         restore_mode(sys.stdin)
 
@@ -104,7 +118,7 @@ def send_messages(soquete):
     global end
     global username
     set_raw_mode(sys.stdin)
-    sys.stdout.write(f"\r\033[KEnter: {current_input}")
+    sys.stdout.write(f"\r\033[K\033[92mEnter: {current_input}\033[0m")
     
     try:
         while end != 1:
@@ -135,8 +149,7 @@ def send_messages(soquete):
                     tput = subprocess.Popen(['tput', 'cols'], stdout=subprocess.PIPE)
                     column_size = int(tput.communicate()[0].strip())
                     limit = column_size - len('Enter: ')
-                    sys.stdout.write(f"\r\033[2KEnter: {current_input[-limit:]}")
-                    # #sys.stdout.flush()
+                    sys.stdout.write(f"\r\033[2K\033[92mEnter: {current_input[-limit:]}\033[0m")
             else:
                 pass
     finally:
